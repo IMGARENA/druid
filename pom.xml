@@ -189,6 +189,7 @@
         <module>extensions-core/druid-ranger-security</module>
         <module>extensions-core/druid-catalog</module>
         <module>extensions-core/testing-tools</module>
+        <module>extensions-core/prometheus-emitter</module>
         <!-- Community extensions -->
         <module>extensions-contrib/compressed-bigdecimal</module>
         <module>extensions-contrib/influx-extensions</module>
@@ -214,7 +215,6 @@
         <module>extensions-contrib/influxdb-emitter</module>
         <module>extensions-contrib/gce-extensions</module>
         <module>extensions-contrib/aliyun-oss-extensions</module>
-        <module>extensions-contrib/prometheus-emitter</module>
         <module>extensions-contrib/opentelemetry-emitter</module>
         <module>extensions-contrib/kubernetes-overlord-extensions</module>
         <!-- distribution packaging -->
