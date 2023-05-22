@@ -26,7 +26,7 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.apache.druid.extensions.contrib</groupId>
+  <groupId>org.apache.druid.extensions</groupId>
   <artifactId>prometheus-emitter</artifactId>
   <name>prometheus-emitter</name>
   <description>Extension support for collecting Druid metrics with Prometheus</description>
