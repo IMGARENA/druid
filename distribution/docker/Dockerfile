@@ -85,6 +85,7 @@ RUN chmod 755 /bin/bash
 COPY distribution/docker/druid.sh /druid.sh
 COPY distribution/docker/peon.sh /peon.sh
 COPY distribution/docker/deduplicate_jars.sh /deduplicate_jars.sh
+RUN chmod 755 /deduplicate_jars.sh
 
 # create necessary directories which could be mounted as volume
 # copy and de-duplicate jars from builder in same layer to reduce image size
