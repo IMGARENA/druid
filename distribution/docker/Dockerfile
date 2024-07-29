@@ -31,7 +31,9 @@ ARG BUILD_FROM_SOURCE="true"
 
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get -qq update \
-    && apt-get -qq -y install --no-install-recommends python3 python3-yaml
+    && apt-get -qq -y install --no-install-recommends python3 python3-yaml \
+    && apt-get -y install --allow-downgrades --no-install-recommends unzip=6.0-26+deb11u1
+
 
 COPY . /src
 WORKDIR /src
@@ -86,6 +88,10 @@ COPY distribution/docker/druid.sh /druid.sh
 COPY distribution/docker/peon.sh /peon.sh
 COPY distribution/docker/deduplicate_jars.sh /deduplicate_jars.sh
 RUN chmod 755 /deduplicate_jars.sh
+
+RUN mkdir -p /opt/druid/extensions/kafka-openbet-auth
+COPY distribution/docker/kafka-oauth2-1.5.jar /opt/druid/extensions/kafka-openbet-auth/kafka-oauth2-1.5.jar
+COPY distribution/docker/kafka-clients-2.6.0.jar /opt/druid/extensions/kafka-openbet-auth/kafka-clients-2.6.0.jar
 
 # create necessary directories which could be mounted as volume
 # copy and de-duplicate jars from builder in same layer to reduce image size
