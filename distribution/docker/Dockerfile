@@ -17,7 +17,7 @@
 # under the License.
 #
 
-ARG JDK_VERSION=11
+ARG JDK_VERSION=17
 
 # The platform is explicitly specified as x64 to build the Druid distribution.
 # This is because it's not able to build the distribution on arm64 due to dependency problem of web-console. See: https://github.com/apache/druid/issues/13012
@@ -31,16 +31,18 @@ ARG BUILD_FROM_SOURCE="true"
 
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get -qq update \
-    && apt-get -qq -y install --no-install-recommends python3 python3-yaml
+    && apt-get -qq -y install --no-install-recommends python3 python3-yaml \
+    && apt-get -y install --allow-downgrades --no-install-recommends unzip=6.0-26+deb11u1
+
 
 COPY . /src
 WORKDIR /src
 RUN --mount=type=cache,target=/root/.m2 if [ "$BUILD_FROM_SOURCE" = "true" ]; then \
-      mvn -B -ff -q dependency:go-offline \
+      mvn -B -ff -q \
       install \
       -Pdist,bundle-contrib-exts \
       -Pskip-static-checks,skip-tests \
-      -Dmaven.javadoc.skip=true \
+      -Dmaven.javadoc.skip=true -T1C \
       ; fi
 
 RUN --mount=type=cache,target=/root/.m2 VERSION=$(mvn -B -q org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate \
@@ -49,17 +51,8 @@ RUN --mount=type=cache,target=/root/.m2 VERSION=$(mvn -B -q org.apache.maven.plu
  && tar -zxf ./distribution/target/apache-druid-${VERSION}-bin.tar.gz -C /opt \
  && mv /opt/apache-druid-${VERSION} /opt/druid
 
-FROM busybox:1.34.1-glibc as busybox
-
-FROM gcr.io/distroless/java$JDK_VERSION-debian11
-LABEL maintainer="Apache Druid Developers <dev@druid.apache.org>"
-
-COPY --from=busybox /bin/busybox /busybox/busybox
-RUN ["/busybox/busybox", "--install", "/bin"]
-
-# Predefined builtin arg, see: https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+FROM alpine:3 as bash-static
 ARG TARGETARCH
-
 #
 # Download bash-static binary to execute scripts that require bash.
 # Although bash-static supports multiple platforms, but there's no need for us to support all those platform, amd64 and arm64 are enough.
@@ -73,21 +66,42 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
       echo "Unsupported architecture ($TARGETARCH)" && exit 1; \
     fi; \
     echo "Downloading bash-static from ${BASH_URL}" \
-    && wget ${BASH_URL} -O /bin/bash \
-    && chmod 755 /bin/bash
+    && wget ${BASH_URL} -O /bin/bash
+
+FROM busybox:1.35.0-glibc as busybox
+
+FROM gcr.io/distroless/java$JDK_VERSION-debian12
+LABEL maintainer="Apache Druid Developers <dev@druid.apache.org>"
+
+COPY --from=busybox /bin/busybox /busybox/busybox
+RUN ["/busybox/busybox", "--install", "/bin"]
+
 
 RUN addgroup -S -g 1000 druid \
  && adduser -S -u 1000 -D -H -h /opt/druid -s /bin/sh -g '' -G druid druid
 
-COPY --chown=druid:druid --from=builder /opt /opt
+
+COPY --from=bash-static /bin/bash /bin/bash
+RUN chmod 755 /bin/bash
+
 COPY distribution/docker/druid.sh /druid.sh
 COPY distribution/docker/peon.sh /peon.sh
+COPY distribution/docker/deduplicate_jars.sh /deduplicate_jars.sh
+RUN chmod 755 /deduplicate_jars.sh
+
+RUN mkdir -p /opt/druid/extensions/kafka-openbet-auth
+COPY distribution/docker/kafka-oauth2-1.5.jar /opt/druid/extensions/kafka-openbet-auth/kafka-oauth2-1.5.jar
+COPY distribution/docker/kafka-clients-2.6.0.jar /opt/druid/extensions/kafka-openbet-auth/kafka-clients-2.6.0.jar
 
 # create necessary directories which could be mounted as volume
+# copy and de-duplicate jars from builder in same layer to reduce image size
 #   /opt/druid/var is used to keep individual files(e.g. log) of each Druid service
 #   /opt/shared is used to keep segments and task logs shared among Druid services
-RUN mkdir /opt/druid/var /opt/shared \
- && chown druid:druid /opt/druid/var /opt/shared \
+RUN --mount=type=bind,from=builder,source=/opt,target=/builder/opt \
+ mkdir -p /opt/druid/var /opt/shared \
+ && cp -r /builder/opt/druid /opt/ \
+ && /deduplicate_jars.sh /opt/druid \
+ && chown -R druid:druid /opt/druid /opt/shared \
  && chmod 775 /opt/druid/var /opt/shared
 
 USER druid
